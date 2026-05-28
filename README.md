@@ -1,7 +1,8 @@
-# svrwx-aap
-## Severe Weather At a Point: A lightweight mapping tool for visualizing [NWS Damage Assessment Toolkit](https://apps.dat.noaa.gov/StormDamage/DamageViewer/) damage survey records near any fixed point of interest.
----
+# svrwx-aap  
 
+Severe Weather At a Point: A lightweight mapping tool for visualizing [NWS Damage Assessment Toolkit](https://apps.dat.noaa.gov/StormDamage/DamageViewer/) (DAT) damage survey data near any fixed point of interest.
+
+---
 ## How it works
 
 | File | Role |
@@ -40,8 +41,8 @@ cp config.json.example config.json
     "name":        "My Weather Station",
     "short_name":  "MWS",
     "description": "Backyard station, Huntsville AL",
-    "lat":         34.730,
-    "lon":        -86.586
+    "lat":         34.7245,
+    "lon":        -86.6397
   },
   "filter": {
     "radius_km":      100,
@@ -153,17 +154,17 @@ All settings live in `config.json`. The fetcher writes selected values into the 
 
 ### `markers` (optional)
 
-An array of custom map markers — instruments, reference locations, nearby towns, road crossings, etc. Each appears on the map with a clickable popup and is rendered independently of the DAT damage data.
+An array of custom map markers; instruments, reference locations, nearby towns, road crossings, etc. Each appears on the map with a clickable popup and is rendered independently of the DAT damage data.
 
 ```json
 "markers": [
   {
-    "name":        "Ka-SACR",
+    "name":        "Ka/X-SACR",
     "lat":         34.342481,
     "lon":        -87.338177,
     "color":       "#ff9900",
     "symbol":      "circle",
-    "description": "Ka-band Scanning ARM Cloud Radar"
+    "description": "Ka/X-band Scanning ARM Cloud Radar"
   }
 ]
 ```
@@ -183,7 +184,7 @@ Markers are rendered on every page load from the cache metadata.
 
 ## Data notes
 
-- DAT records come from **NWS post-event damage surveys**; they are not real-time. Records typically appear hours to a few days after an event.
+- DAT records come from **NWS damage surveys**; they are not real-time. Records typically appear hours to a few days after an event.
 - Data is considered **preliminary**; official statistics are published in the [NCEI Storm Data](https://www.ncdc.noaa.gov/IPS/sd/sd.html) publication.
 - The DAT includes tornado tracks (EF0–EF5), straight-line wind/TSTM damage, hail, and occasionally tropical events.
 - A 403 response from the DAT server may occur if the server is temporarily unavailable or under maintenance. The fetcher logs errors and exits gracefully — the existing cache is left untouched.
