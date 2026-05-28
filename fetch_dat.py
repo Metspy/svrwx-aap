@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 fetch_dat.py — NOAA Damage Assessment Toolkit proximity fetcher
-https://github.com/YOUR-USERNAME/svrwx-aap
+https://github.com/Metspy/svrwx-aap
 
 Queries the NWS DAT ArcGIS FeatureServer for all three layer types (points,
 lines, polygons) within a configurable bounding box around a reference point,
