@@ -1,5 +1,5 @@
 # svrwx-aap
-Severe Weather At a Point: A lightweight mapping tool for visualizing [NWS Damage Assessment Toolkit](https://apps.dat.noaa.gov/StormDamage/DamageViewer/) damage survey records near any fixed point of interest.
+## Severe Weather At a Point: A lightweight mapping tool for visualizing [NWS Damage Assessment Toolkit](https://apps.dat.noaa.gov/StormDamage/DamageViewer/) damage survey records near any fixed point of interest.
 ---
 
 ## How it works
