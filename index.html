@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>svrwx-aap — Severe Weather Monitor</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg:      #0a0d12;
+    --panel:   #111620;
+    --border:  #1e2a3a;
+    --accent:  #00c8ff;
+    --text:    #c8d8e8;
+    --muted:   #4a6070;
+    --green:   #39ff84;
+    --yellow:  #ffd700;
+    --orange:  #ff8c00;
+    --red:     #ff2244;
+    --purple:  #cc44ff;
+    --mono:    'Share Tech Mono', monospace;
+    --sans:    'Barlow Condensed', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 300px 1fr;
+    grid-template-areas: "header header" "sidebar map";
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    grid-area: header;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 9px 16px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .logo { display: flex; flex-direction: column; line-height: 1; }
+  .logo-main {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  #site-subtitle {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  .vr { width: 1px; height: 34px; background: var(--border); flex-shrink: 0; }
+
+  /* Controls */
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ctrl-label {
+    font-size: 10px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .quick-btns { display: flex; gap: 3px; }
+  .qbtn {
+    font-family: var(--mono); font-size: 11px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text); padding: 3px 9px; cursor: pointer;
+    transition: all .12s; letter-spacing: 1px;
+  }
+  .qbtn:hover, .qbtn.active {
+    background: var(--accent); color: var(--bg); border-color: var(--accent);
+  }
+  input[type="date"] {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 3px 7px; outline: none; cursor: pointer;
+  }
+  input[type="date"]:focus { border-color: var(--accent); }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+  .apply-btn {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--accent); color: var(--bg);
+    border: none; padding: 4px 12px; cursor: pointer;
+    letter-spacing: 1px; font-weight: 700; transition: opacity .12s;
+  }
+  .apply-btn:hover { opacity: .8; }
+
+  #custom-range { display: none; align-items: center; gap: 8px; }
+
+  .header-right {
+    margin-left: auto; display: flex; align-items: center; gap: 12px;
+  }
+  #status { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  #status.ok  { color: var(--green); }
+  #status.err { color: var(--red); }
+  #cache-age  { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+  /* ── Sidebar ── */
+  aside {
+    grid-area: sidebar;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .sidebar-hdr {
+    padding: 10px 13px 7px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .sb-title {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--accent);
+  }
+  #event-count {
+    font-family: var(--mono); font-size: 18px;
+    font-weight: 700; color: var(--text); margin-left: auto;
+  }
+
+  .layer-toggles {
+    padding: 7px 13px; border-bottom: 1px solid var(--border);
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .ltoggle {
+    display: flex; align-items: center; gap: 5px; cursor: pointer;
+    font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    transition: color .12s;
+  }
+  .ltoggle input { display: none; }
+  .ltoggle .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    border: 2px solid currentColor; transition: background .12s;
+  }
+  .ltoggle input:checked ~ .dot { background: currentColor; }
+  .lt-pts  { color: #ff6b35; } .lt-pts:hover  { color: #ff6b35; }
+  .lt-lns  { color: var(--yellow); } .lt-lns:hover { color: var(--yellow); }
+  .lt-ply  { color: #88aaff; } .lt-ply:hover  { color: #88aaff; }
+
+  #event-list {
+    flex: 1; overflow-y: auto; padding: 3px 0;
+  }
+  #event-list::-webkit-scrollbar { width: 3px; }
+  #event-list::-webkit-scrollbar-track { background: var(--bg); }
+  #event-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .ev-item {
+    padding: 8px 13px; border-left: 3px solid transparent;
+    cursor: pointer; transition: background .08s, border-color .08s;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 1px 6px;
+  }
+  .ev-item:hover { background: rgba(255,255,255,.035); }
+  .ev-item.sel   { background: rgba(0,200,255,.06); border-left-color: var(--accent); }
+
+  .ev-type { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  .ev-date { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: right; white-space: nowrap; }
+  .ev-loc  { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev-dist { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: right; }
+
+  .sep { height: 1px; background: var(--border); margin: 1px 0; }
+
+  .ef5     { color: #b060c0; }
+  .ef4     { color: #ff4444; }
+  .ef3p    { color: #ff8833; }
+  .ef3     { color: #ffaa44; }
+  .ef2     { color: #ffd700; }
+  .ef1     { color: #44dd44; }
+  .ef0     { color: #44dddd; }
+  .efu     { color: #aaaaaa; }
+  .tstm    { color: #aaccff; }
+  .tropical{ color: #ffaa00; }
+  .ef-na   { color: var(--muted); }
+
+  /* Legend */
+  .legend {
+    padding: 8px 13px 10px; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 2px;
+    overflow-y: auto; max-height: 280px;
+  }
+  .legend::-webkit-scrollbar { width: 3px; }
+  .legend::-webkit-scrollbar-track { background: var(--bg); }
+  .legend::-webkit-scrollbar-thumb { background: var(--border); }
+  .lg-section-title {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--accent);
+    margin-top: 4px; margin-bottom: 1px;
+  }
+  .lg-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text);
+  }
+  .lg-row svg { flex-shrink: 0; }
+  .lg-swatch {
+    width: 20px; height: 8px; flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.4);
+  }
+  .lg-rings {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+  }
+  .lg-ring-line { width: 20px; height: 0; border-top: 1px dashed var(--accent); opacity: .5; }
+
+  /* ── Map ── */
+  #map { grid-area: map; background: #06090f; }
+
+  /* Leaflet overrides */
+  .leaflet-popup-content-wrapper {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,.6);
+    font-family: var(--sans); min-width: 210px;
+  }
+  .leaflet-popup-tip { background: var(--panel); }
+  .leaflet-popup-content { margin: 11px 13px; }
+  .pu-title {
+    font-family: var(--mono); font-size: 12px;
+    letter-spacing: 1px; margin-bottom: 7px;
+  }
+  .pu-row {
+    display: flex; justify-content: space-between;
+    font-size: 12px; padding: 2px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pu-row:last-child { border: none; }
+  .pu-k { color: var(--muted); }
+  .pu-v { font-family: var(--mono); font-size: 11px; }
+
+  /* Site marker */
+  .site-icon {
+    width: 26px; height: 26px;
+    background: var(--accent); border: 3px solid var(--bg); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 8px; font-weight: 700;
+    color: var(--bg); letter-spacing: .3px;
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  .ring-label {
+    background: transparent !important; border: none !important;
+  }
+  .ring-label-text {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    color: #00e5ff; letter-spacing: 1px; white-space: nowrap;
+    text-shadow:
+      -1px -1px 0 #000,  1px -1px 0 #000,
+      -1px  1px 0 #000,  1px  1px 0 #000,
+       0px  2px 3px rgba(0,0,0,0.6);
+  }
+
+  .empty-state {
+    padding: 36px 18px; text-align: center;
+    color: var(--muted); font-family: var(--mono);
+    font-size: 11px; line-height: 2.2; letter-spacing: 1px;
+  }
+
+  /* ── Leaflet layer control ── */
+  .leaflet-control-layers {
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5) !important;
+    font-family: var(--sans) !important;
+    font-size: 12px !important;
+    color: var(--text) !important;
+    min-width: 140px;
+  }
+  .leaflet-control-layers-toggle {
+    background-color: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+  }
+  .leaflet-control-layers-separator {
+    border-top: 1px solid var(--border) !important;
+    margin: 4px 0 !important;
+  }
+  .leaflet-control-layers label {
+    color: var(--text) !important;
+    letter-spacing: .5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    cursor: pointer;
+  }
+  .leaflet-control-layers label:hover { color: var(--accent) !important; }
+  .leaflet-control-layers-overlays .leaflet-control-layers-selector,
+  .leaflet-control-layers-base .leaflet-control-layers-selector {
+    accent-color: var(--accent);
+    margin: 0;
+  }
+
+  @media (max-width: 640px) {
+    body { grid-template-columns: 1fr; grid-template-areas: "header" "map"; }
+    aside { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-main">SVRWX·AAP</span>
+    <span id="site-subtitle">Loading…</span>
+  </div>
+
+  <div class="vr"></div>
+
+  <div class="controls">
+    <span class="ctrl-label">Window</span>
+    <div class="quick-btns" id="quick-btns">
+      <!-- populated from cache meta -->
+    </div>
+  </div>
+
+  <div class="controls" id="custom-range">
+    <span class="ctrl-label">From</span>
+    <input type="date" id="date-from"/>
+    <span class="ctrl-label">To</span>
+    <input type="date" id="date-to"/>
+    <button class="apply-btn" id="apply-btn">APPLY</button>
+  </div>
+
+  <div class="header-right">
+    <span id="cache-age"></span>
+    <span id="status">LOADING…</span>
+  </div>
+</header>
+
+<aside>
+  <div class="sidebar-hdr">
+    <span class="sb-title">Events</span>
+    <span id="event-count">—</span>
+  </div>
+  <div class="layer-toggles">
+    <label class="ltoggle lt-pts">
+      <input type="checkbox" id="tog-pts" checked><span class="dot"></span> Points
+    </label>
+    <label class="ltoggle lt-lns">
+      <input type="checkbox" id="tog-lns" checked><span class="dot"></span> Tracks
+    </label>
+    <label class="ltoggle lt-ply">
+      <input type="checkbox" id="tog-ply" checked><span class="dot"></span> Polygons
+    </label>
+  </div>
+  <div id="event-list"><div class="empty-state">LOADING DATA…</div></div>
+  <div class="legend" id="legend">
+    <div class="lg-section-title">Points</div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#7a0082" stroke="#000" stroke-width="1"/></svg><span>EF5</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#cc0000" stroke="#000" stroke-width="1"/></svg><span>EF4</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#cc5500" stroke="#000" stroke-width="1"/></svg><span>EF3+</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#ff6600" stroke="#000" stroke-width="1"/></svg><span>EF3</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#ffcc00" stroke="#000" stroke-width="1"/></svg><span>EF2</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#00bb00" stroke="#000" stroke-width="1"/></svg><span>EF1</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#00bbcc" stroke="#000" stroke-width="1"/></svg><span>EF0</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><polygon points="6,10 0,1 12,1" fill="#aaaaaa" stroke="#000" stroke-width="1"/></svg><span>EFU</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><circle cx="6" cy="6" r="4.5" fill="#aaccff" stroke="#000" stroke-width="1"/></svg><span>TSTM</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><circle cx="6" cy="6" r="4.5" fill="#ffaa00" stroke="#000" stroke-width="1"/></svg><span>Tropical</span></div>
+    <div class="lg-row"><svg width="12" height="11" viewBox="0 0 12 11"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#aaaaaa" stroke-width="1.5"/></svg><span>N/A</span></div>
+    <div class="lg-section-title" style="margin-top:6px">Tracks / Polygons</div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#7a0082"></div><span>EF5</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#cc0000"></div><span>EF4</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#cc5500"></div><span>EF3+</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#ff6600"></div><span>EF3</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#ffcc00"></div><span>EF2</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#00bb00"></div><span>EF1</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#00bbcc"></div><span>EF0</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#aaaaaa"></div><span>EFU</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#aaccff"></div><span>TSTM/Wind</span></div>
+    <div class="lg-row"><div class="lg-swatch" style="background:#888888"></div><span>N/A</span></div>
+    <div class="lg-rings" id="legend-rings" style="margin-top:6px">
+      <span class="lg-ring-line"></span>
+      <span id="ring-label-text">— km rings</span>
+    </div>
+  </div>
+</aside>
+
+<div id="map"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const CACHE_URL = "data/dat_cache.json";
+let allFeatures  = [];
+let filtered     = [];
+let meta         = {};
+let mapLayers    = { points: L.layerGroup(), lines: L.layerGroup(), polygons: L.layerGroup() };
+let activeDays   = null;   // null = custom range
+let customFrom   = null;
+let customTo     = null;
+
+// ── Map ────────────────────────────────────────────────────────────────────
+const map = L.map("map", { center: [38, -95], zoom: 4, zoomControl: false });
+L.control.zoom({ position: "bottomright" }).addTo(map);
+
+// Basemaps
+const basemaps = {
+  "Topo (USGS)": L.tileLayer(
+    "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",
+    {
+      attribution: "USGS National Map · Tiles courtesy of the US Geological Survey",
+      maxZoom: 16,
+      opacity: 0.75,
+    }
+  ),
+  "Satellite (USGS)": L.tileLayer(
+    "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}",
+    {
+      attribution: "USGS National Map · Tiles courtesy of the US Geological Survey",
+      maxZoom: 16,
+    }
+  ),
+  "Dark": L.layerGroup([
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_matter_no_labels/{z}/{x}/{y}{r}.png",
+      { attribution: "© CartoDB © OpenStreetMap", maxZoom: 19 }),
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_matter_only_labels/{z}/{x}/{y}{r}.png",
+      { maxZoom: 19, opacity: 0.5 }),
+  ]),
+};
+
+// Satellite on by default
+basemaps["Satellite (USGS)"].addTo(map);
+
+// Layer control — basemaps top, damage overlays below
+const overlays = {
+  "Damage Points": mapLayers.points,
+  "Damage Tracks": mapLayers.lines,
+  "Damage Polygons": mapLayers.polygons,
+};
+L.control.layers(basemaps, overlays, { position: "topright", collapsed: false }).addTo(map);
+
+Object.values(mapLayers).forEach(lg => lg.addTo(map));
+
+// ── Colour helpers — mirroring NWS DAT legend ─────────────────────────────
+// Colors matched to the official DAT Damage Viewer legend
+const EF_COLORS = {
+  "EF5":       "#7a0082",   // deep purple
+  "EF4":       "#cc0000",   // dark red
+  "EF3+":      "#cc5500",   // dark orange
+  "EF3":       "#ff6600",   // orange
+  "EF2":       "#ffcc00",   // yellow
+  "EF1":       "#00bb00",   // green
+  "EF0":       "#00bbcc",   // cyan
+  "EFU":       "#aaaaaa",   // gray
+  "TSTM/WIND": "#aaccff",   // light blue
+  "TSTM":      "#aaccff",
+  "WIND":      "#aaccff",
+  "TROPICAL":  "#ffaa00",   // amber
+  "N/A":       "#888888",
+};
+
+function efColor(ef) {
+  if (!ef) return EF_COLORS["N/A"];
+  const u = ef.toUpperCase().trim();
+  if (EF_COLORS[u]) return EF_COLORS[u];
+  if (u === "EF3+" || u.includes("EF3+")) return EF_COLORS["EF3+"];
+  if (u.includes("TSTM") || u === "WIND") return EF_COLORS["TSTM"];
+  return EF_COLORS["N/A"];
+}
+
+function efClass(ef) {
+  if (!ef) return "ef-na";
+  const u = ef.toUpperCase().trim();
+  if (u === "EF5")  return "ef5";
+  if (u === "EF4")  return "ef4";
+  if (u === "EF3+" || u.includes("EF3+")) return "ef3p";
+  if (u === "EF3")  return "ef3";
+  if (u === "EF2")  return "ef2";
+  if (u === "EF1")  return "ef1";
+  if (u === "EF0")  return "ef0";
+  if (u === "EFU")  return "efu";
+  if (u.includes("TSTM") || u === "WIND") return "tstm";
+  if (u === "TROPICAL") return "tropical";
+  return "ef-na";
+}
+
+// ── Geometry ───────────────────────────────────────────────────────────────
+function centroid(f) {
+  const g = f.geometry;
+  if (!g) return null;
+  if (g.type === "Point") return { lat: g.coordinates[1], lon: g.coordinates[0] };
+  const flat = [];
+  function fl(c) {
+    if (!c) return;
+    if (typeof c[0] === "number") { flat.push(c); return; }
+    c.forEach(fl);
+  }
+  fl(g.coordinates);
+  if (!flat.length) return null;
+  return {
+    lat: flat.reduce((s, c) => s + c[1], 0) / flat.length,
+    lon: flat.reduce((s, c) => s + c[0], 0) / flat.length,
+  };
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, d2r = Math.PI / 180;
+  const dLat = (lat2 - lat1) * d2r, dLon = (lon2 - lon1) * d2r;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+function distFromSite(f) {
+  const c = centroid(f);
+  if (!c || !meta.site_lat) return null;
+  return haversine(meta.site_lat, meta.site_lon, c.lat, c.lon);
+}
+
+// ── Formatting ─────────────────────────────────────────────────────────────
+function fmtDate(ms) {
+  if (!ms) return "—";
+  return new Date(ms).toLocaleDateString("en-US",
+    { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+// ── Popup ──────────────────────────────────────────────────────────────────
+function buildPopup(f) {
+  const p = f.properties || {};
+  const ef = p.efscale || "—";
+  const dist = distFromSite(f);
+  const rows = [
+    ["Type",    ef],
+    ["Layer",   p.layer || "—"],
+    ["Date",    fmtDate(p.stormdate || p.surveydate)],
+    ["Office",  p.office || p.wfo || "—"],
+    ["Wind",    p.windspeed ? p.windspeed + " mph" : (p.maxwind ? p.maxwind + " mph" : "—")],
+    ["Injuries", (p.injuries  != null && p.injuries  >= 0) ? p.injuries  : "—"],
+    ["Deaths",   (p.deaths    != null && p.deaths    >= 0) ? p.deaths    :
+                 (p.fatalities != null && p.fatalities >= 0) ? p.fatalities : "—"],
+    ...(p.length  != null && p.length  > 0 ? [["Length",  p.length.toFixed(2) + " mi"]] : []),
+    ...(p.width   != null && p.width   > 0 ? [["Width",   p.width + " yd"]]  : []),
+    ["Dist",    dist ? dist.toFixed(1) + " km from " + (meta.site_short || "site") : "—"],
+    ...(p.damage_txt ? [["Damage", p.damage_txt.substring(0, 90)]] : []),
+    ...(p.comments && p.comments !== "Null" ? [["Notes", p.comments.substring(0, 120)]] : []),
+  ];
+  const rhtml = rows.map(([k,v]) =>
+    `<div class="pu-row"><span class="pu-k">${k}</span><span class="pu-v">${v}</span></div>`
+  ).join("");
+  return `<div class="pu-title" style="color:${efColor(ef)}">${ef} — ${p.layer || ""}</div>${rhtml}`;
+}
+
+// ── Draw ───────────────────────────────────────────────────────────────────
+function draw() {
+  Object.values(mapLayers).forEach(lg => lg.clearLayers());
+
+  const showPts = document.getElementById("tog-pts").checked;
+  const showLns = document.getElementById("tog-lns").checked;
+  const showPly = document.getElementById("tog-ply").checked;
+
+  filtered.forEach((f, idx) => {
+    const p = f.properties || {};
+    const color = efColor(p.efscale);
+    const g = f.geometry;
+    if (!g) return;
+
+    const layer = p.layer;
+    if (layer === "points"   && !showPts) return;
+    if (layer === "lines"    && !showLns) return;
+    if (layer === "polygons" && !showPly) return;
+
+    const popup = buildPopup(f);
+    const onCk  = () => selectEvent(idx);
+
+    if (g.type === "Point") {
+      const [lon, lat] = g.coordinates;
+      // Triangles for EF-scale points; circles for TSTM, Tropical, N/A — matching NWS legend
+      const ef_u = (p.efscale || "").toUpperCase().trim();
+      const useCircle = ef_u.includes("TSTM") || ef_u === "WIND" || ef_u === "TROPICAL"
+                     || ef_u === "N/A" || ef_u === "" || ef_u === "UNKNOWN";
+      const ptHtml = useCircle
+        ? `<svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7" cy="7" r="5.5" fill="${color}" stroke="#000" stroke-width="1.5"/>
+           </svg>`
+        : `<svg width="16" height="14" viewBox="0 0 16 14" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="8,13 0,1 16,1"
+              fill="${color}" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>
+           </svg>`;
+      const ptIcon = L.divIcon({
+        className: "",
+        html: ptHtml,
+        iconSize:   useCircle ? [14, 14] : [16, 14],
+        iconAnchor: useCircle ? [7,   7] : [8,  13],
+      });
+      L.marker([lat, lon], { icon: ptIcon })
+        .bindPopup(popup).on("click", onCk).addTo(mapLayers.points);
+
+    } else if (g.type === "LineString" || g.type === "MultiLineString") {
+      const coords = g.type === "LineString"
+        ? g.coordinates.map(c => [c[1], c[0]])
+        : g.coordinates.map(p => p.map(c => [c[1], c[0]]));
+      // Dark shadow line behind for contrast, coloured line on top
+      L.polyline(coords, { color: "#000", weight: 6, opacity: 0.5 })
+        .addTo(mapLayers.lines);
+      L.polyline(coords, { color, weight: 3.5, opacity: 1.0 })
+        .bindPopup(popup).on("click", onCk).addTo(mapLayers.lines);
+
+    } else if (g.type === "Polygon" || g.type === "MultiPolygon") {
+      const rings = g.type === "Polygon"
+        ? g.coordinates.map(r => r.map(c => [c[1], c[0]]))
+        : g.coordinates.map(poly => poly.map(r => r.map(c => [c[1], c[0]])));
+      L.polygon(rings, {
+        color: "#000", weight: 3, opacity: 0.5,   // dark outer stroke
+        fillColor: color, fillOpacity: 0.30,
+      }).bindPopup(popup).on("click", onCk).addTo(mapLayers.polygons);
+      // Coloured inner stroke on top
+      L.polygon(rings, {
+        color, weight: 1.5, opacity: 1.0,
+        fill: false,
+      }).addTo(mapLayers.polygons);
+    }
+  });
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+function buildSidebar() {
+  document.getElementById("event-count").textContent = filtered.length;
+  const list = document.getElementById("event-list");
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state">NO EVENTS<br>IN SELECTED WINDOW</div>';
+    return;
+  }
+  const sorted = filtered
+    .map((f, idx) => ({ f, idx }))
+    .sort((a, b) => (b.f.properties?.stormdate || b.f.properties?.surveydate || 0) - (a.f.properties?.stormdate || a.f.properties?.surveydate || 0));
+
+  list.innerHTML = sorted.map(({ f, idx }) => {
+    const p = f.properties || {};
+    const ef = p.efscale || "N/A";
+    const dist = distFromSite(f);
+    return `
+      <div class="ev-item" data-idx="${idx}" onclick="selectEvent(${idx})">
+        <span class="ev-type ${efClass(ef)}">${ef}</span>
+        <span class="ev-date">${fmtDate(p.stormdate || p.surveydate)}</span>
+        <span class="ev-loc">${p.office || p.wfo || p.event_id || p.layer || "—"}</span>
+        <span class="ev-dist">${dist ? dist.toFixed(0)+" km" : "—"}</span>
+      </div>`;
+  }).join('<div class="sep"></div>');
+}
+
+function selectEvent(idx) {
+  document.querySelectorAll(".ev-item.sel").forEach(el => el.classList.remove("sel"));
+  const el = document.querySelector(`.ev-item[data-idx="${idx}"]`);
+  if (el) { el.classList.add("sel"); el.scrollIntoView({ block: "nearest" }); }
+  const c = centroid(filtered[idx]);
+  if (c) map.panTo([c.lat, c.lon], { animate: true });
+}
+
+// ── Filter ─────────────────────────────────────────────────────────────────
+function applyFilter() {
+  let fromMs, toMs;
+  if (activeDays !== null) {
+    toMs   = Date.now();
+    fromMs = toMs - activeDays * 864e5;
+  } else {
+    fromMs = customFrom ? customFrom.getTime() : 0;
+    toMs   = customTo   ? customTo.getTime()   : Infinity;
+  }
+  filtered = allFeatures.filter(f => {
+    const sd = f.properties?.stormdate || f.properties?.surveydate || 0;
+    return sd >= fromMs && sd <= toMs;
+  });
+  draw();
+  buildSidebar();
+}
+
+// ── Build UI from meta ─────────────────────────────────────────────────────
+function buildUI() {
+  // Header subtitle
+  const short = meta.site_short || meta.site_name || "Site";
+  const r     = meta.radius_km  || "?";
+  document.getElementById("site-subtitle").textContent =
+    `${meta.site_name || ""}  ·  ${r} km radius`;
+  document.title = `svrwx-aap — ${short}`;
+
+  // Quick window buttons: always offer 7/14/30/90 plus campaign-aware options
+  const defaultDays = meta.default_window || 30;
+  const presets = [7, 14, 30, 90].filter((d, i, arr) => arr.indexOf(d) === i);
+  const btnContainer = document.getElementById("quick-btns");
+  btnContainer.innerHTML = "";
+
+  presets.forEach(d => {
+    const btn = document.createElement("button");
+    btn.className = "qbtn" + (d === defaultDays ? " active" : "");
+    btn.dataset.days = d;
+    btn.textContent = d + "d";
+    if (d === defaultDays) activeDays = d;
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".qbtn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      activeDays = parseInt(btn.dataset.days);
+      document.getElementById("custom-range").style.display = "none";
+      applyFilter();
+    });
+    btnContainer.appendChild(btn);
+  });
+
+  // Custom button
+  const cBtn = document.createElement("button");
+  cBtn.className = "qbtn"; cBtn.dataset.days = "0"; cBtn.textContent = "Custom";
+  cBtn.addEventListener("click", () => {
+    document.querySelectorAll(".qbtn").forEach(b => b.classList.remove("active"));
+    cBtn.classList.add("active");
+    activeDays = null;
+    document.getElementById("custom-range").style.display = "flex";
+  });
+  btnContainer.appendChild(cBtn);
+
+  // Date picker bounds from meta
+  const startDate = (meta.start_date || "2000-01-01").substring(0, 10);
+  const todayDate = new Date().toISOString().substring(0, 10);
+  document.getElementById("date-from").min   = startDate;
+  document.getElementById("date-from").value = startDate;
+  document.getElementById("date-to").max     = todayDate;
+  document.getElementById("date-to").value   = todayDate;
+
+  // Site marker
+  const lat = meta.site_lat, lon = meta.site_lon;
+  if (lat && lon) {
+    map.setView([lat, lon], meta.map_zoom || 7);
+
+    L.marker([lat, lon], {
+      icon: L.divIcon({
+        className: "",
+        html: `<div class="site-icon">${(meta.site_short || "SITE").substring(0,4)}</div>`,
+        iconSize: [26, 26], iconAnchor: [13, 13],
+      }),
+      zIndexOffset: 1000,
+    }).addTo(map).bindPopup(
+      `<b>${meta.site_name || "Site"}</b><br>${lat.toFixed(5)}°N, ${Math.abs(lon).toFixed(5)}°W`
+    );
+
+    // Range rings from config
+    const rings = meta.ring_distances || [];
+    const maxRing = rings.length ? Math.max(...rings) : 0;
+    rings.forEach(km => {
+      const dash = km === maxRing ? null : "6 8";
+      // Dark shadow ring for contrast against light basemaps
+      L.circle([lat, lon], {
+        radius: km * 1000,
+        color: "#000", weight: 3, opacity: 0.35,
+        fillOpacity: 0, dashArray: dash,
+      }).addTo(map);
+      // Coloured ring on top
+      L.circle([lat, lon], {
+        radius: km * 1000,
+        color: "#00c8ff", weight: 1.5, opacity: 0.7,
+        fillOpacity: 0, dashArray: dash,
+      }).addTo(map);
+      // Label with text-shadow halo via CSS class
+      const labelLat = lat + (km / 111.32);
+      L.marker([labelLat, lon], {
+        icon: L.divIcon({
+          className: "ring-label",
+          html: `<span class="ring-label-text">${km} km</span>`,
+          iconAnchor: [20, 0],
+        }),
+        interactive: false,
+      }).addTo(map);
+    });
+
+    // Custom markers from config
+    const customMarkers = meta.markers || [];
+    customMarkers.forEach(m => {
+      const c = m.color || "#ffffff";
+      const sym = (m.symbol || "circle").toLowerCase();
+
+      // Build SVG for each symbol type
+      let svgInner;
+      if (sym === "square") {
+        svgInner = `<rect x="2" y="2" width="12" height="12" fill="${c}" stroke="#000" stroke-width="1.5"/>`;
+      } else if (sym === "diamond") {
+        svgInner = `<polygon points="8,1 15,8 8,15 1,8" fill="${c}" stroke="#000" stroke-width="1.5"/>`;
+      } else if (sym === "cross") {
+        svgInner = `<line x1="8" y1="1" x2="8" y2="15" stroke="${c}" stroke-width="3" stroke-linecap="round"/>
+                    <line x1="1" y1="8" x2="15" y2="8" stroke="${c}" stroke-width="3" stroke-linecap="round"/>
+                    <line x1="8" y1="1" x2="8" y2="15" stroke="#000" stroke-width="1" stroke-linecap="round"/>
+                    <line x1="1" y1="8" x2="15" y2="8" stroke="#000" stroke-width="1" stroke-linecap="round"/>`;
+      } else if (sym === "triangle") {
+        svgInner = `<polygon points="8,1 15,15 1,15" fill="${c}" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>`;
+      } else {
+        // default: circle
+        svgInner = `<circle cx="8" cy="8" r="6" fill="${c}" stroke="#000" stroke-width="1.5"/>`;
+      }
+
+      const html = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">${svgInner}</svg>`;
+
+      const popupHtml = `<div class="pu-title" style="color:${c}">${m.name}</div>`
+        + (m.description ? `<div class="pu-row"><span class="pu-k">Note</span><span class="pu-v">${m.description}</span></div>` : "")
+        + `<div class="pu-row"><span class="pu-k">Lat</span><span class="pu-v">${m.lat.toFixed(5)}</span></div>`
+        + `<div class="pu-row"><span class="pu-k">Lon</span><span class="pu-v">${m.lon.toFixed(5)}</span></div>`;
+
+      L.marker([m.lat, m.lon], {
+        icon: L.divIcon({
+          className: "",
+          html,
+          iconSize:   [16, 16],
+          iconAnchor: [8,  8],
+        }),
+        zIndexOffset: 500,
+      }).addTo(map).bindPopup(popupHtml);
+    });
+
+    // Legend rings label
+    if (rings.length) {
+      document.getElementById("ring-label-text").textContent =
+        rings.join(" / ") + " km rings";
+    }
+  }
+}
+
+// ── Apply btn ──────────────────────────────────────────────────────────────
+document.getElementById("apply-btn").addEventListener("click", () => {
+  const fv = document.getElementById("date-from").value;
+  const tv = document.getElementById("date-to").value;
+  customFrom = fv ? new Date(fv + "T00:00:00Z") : null;
+  customTo   = tv ? new Date(tv + "T23:59:59Z") : null;
+  applyFilter();
+});
+
+["tog-pts","tog-lns","tog-ply"].forEach(id =>
+  document.getElementById(id).addEventListener("change", draw));
+
+// ── Load ───────────────────────────────────────────────────────────────────
+async function loadData() {
+  const statusEl = document.getElementById("status");
+  const ageEl    = document.getElementById("cache-age");
+  try {
+    const resp = await fetch(CACHE_URL + "?_=" + Date.now());
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+
+    meta        = data.meta || {};
+    allFeatures = data.features || [];
+
+    if (meta.generated) {
+      const h = Math.round((Date.now() - new Date(meta.generated)) / 36e5);
+      ageEl.textContent = `cache: ${h}h ago`;
+    }
+
+    buildUI();
+    applyFilter();
+
+    statusEl.textContent = allFeatures.length + " RECORDS";
+    statusEl.className = "ok";
+  } catch (err) {
+    statusEl.textContent = "ERROR: " + err.message;
+    statusEl.className = "err";
+    document.getElementById("event-list").innerHTML =
+      `<div class="empty-state">FAILED TO LOAD<br>${err.message}<br><br>Run fetch_dat.py --backfill first.</div>`;
+    console.error(err);
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>

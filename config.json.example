@@ -1,0 +1,34 @@
+{
+  "site": {
+    "name": "My Site Name",
+    "short_name": "SITE",
+    "description": "Optional description shown in the map popup",
+    "lat": 34.0,
+    "lon": -87.0
+  },
+  "filter": {
+    "radius_km": 100,
+    "start_date": "2024-01-01",
+    "end_date": null,
+    "retention_days": 400
+  },
+  "display": {
+    "default_window_days": 30,
+    "map_zoom": 7,
+    "ring_distances_km": [
+      25,
+      50,
+      100
+    ]
+  },
+  "markers": [
+    {
+      "name": "My Instrument",
+      "lat": 34.0,
+      "lon": -87.0,
+      "color": "#ff9900",
+      "symbol": "circle",
+      "description": "Optional description shown in popup"
+    }
+  ]
+}
