@@ -1,8 +1,5 @@
-# Personal site configuration — never overwrite a user's setup on merge
+# Personal site configuration
 config.json
-
-# Cache is generated locally by fetch_dat.py, not shared via upstream
-data/dat_cache.json
 
 # Python
 __pycache__/
